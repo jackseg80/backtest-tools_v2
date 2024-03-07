@@ -3,6 +3,12 @@ import seaborn as sns
 import numpy as np
 from tabulate import tabulate
 
+def get_n_columns(df, columns, n=1):
+    dt = df.copy()
+    for col in columns:
+        dt["n"+str(n)+"_"+col] = dt[col].shift(n)
+    return dt
+
 def get_metrics(df_trades, df_days):
     df_days_copy = df_days.copy()
     df_days_copy['evolution'] = df_days_copy['wallet'].diff()
@@ -254,7 +260,7 @@ def simple_backtest_analysis(
 def multi_backtest_analysis(
     trades, 
     days,
-    leverage, 
+    leverage=1, 
     general_info=True, 
     trades_info=False,
     days_info=False,
@@ -525,9 +531,12 @@ def multi_backtest_analysis(
             table_pair.append([
                 pair_total_trades, pair, pair_sum_result, pair_avg_result, pair_worst_trade, pair_best_trade, pair_win_rate
             ])
+            
+        # Trier d'abord par Sum-result, puis par Win-rate en cas d'égalité
+        table_pair_sorted = sorted(table_pair, key=lambda x: (float(x[2].replace('%', '')), float(x[6].replace('%', ''))), reverse=True)
 
         headers = ["Trades","Pair","Sum-result","Mean-trade","Worst-trade","Best-trade","Win-rate"]
-        print(tabulate(table_pair, headers, tablefmt="fancy_outline"))
+        print(tabulate(table_pair_sorted, headers, tablefmt="fancy_outline"))
 
     return df_trades, df_days
 

@@ -76,7 +76,7 @@ def plot_equity_vs_asset(df_days, pair, leverage=1, log=False):
     ax_left[1].axhline(y=days.iloc[0]['price'], color='black', alpha=0.3)
     ax_left[1].legend(["Evolution de l'actif"], loc ="upper left")
 
-    liquidation = 1/leverage * 100
+    liquidation = 1/leverage * 95
     max_drawdown= days['drawdown_pct'].max() * 100
     
     ax_left[2].title.set_text("Courbe du drawdown")
