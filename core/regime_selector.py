@@ -8,6 +8,7 @@ Uses hysteresis to prevent flip-flopping between regimes.
 from enum import Enum
 import pandas as pd
 import numpy as np
+import ta
 
 
 class Regime(str, Enum):
@@ -41,6 +42,33 @@ def slope_norm(series: pd.Series, window: int = 20) -> pd.Series:
     return normalized
 
 
+def prepare_regime_data(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prepare dataframe for regime detection by calculating EMAs if missing.
+
+    Args:
+        df: DataFrame with at least 'close' column
+
+    Returns:
+        DataFrame with 'close', 'ema50', 'ema200' columns added
+
+    Example:
+        >>> df = exchange.load_data("BTC/USDT:USDT", "1h")
+        >>> df_prepared = prepare_regime_data(df)
+        >>> regime_series = calculate_regime_series(df_prepared)
+    """
+    df = df.copy()
+
+    # Calculate EMAs if not present
+    if 'ema50' not in df.columns:
+        df['ema50'] = ta.trend.ema_indicator(df['close'], window=50)
+
+    if 'ema200' not in df.columns:
+        df['ema200'] = ta.trend.ema_indicator(df['close'], window=200)
+
+    return df
+
+
 def calculate_regime_series(
     df_btc: pd.DataFrame,
     confirm_n: int = 12
@@ -58,7 +86,7 @@ def calculate_regime_series(
 
     Args:
         df_btc: DataFrame with columns ['close', 'ema50', 'ema200']
-                Must have datetime index
+                Must have datetime index. If EMAs missing, use prepare_regime_data() first.
         confirm_n: Number of consecutive bars required to confirm regime change
                    (default 12, adjust based on timeframe)
 
@@ -66,15 +94,20 @@ def calculate_regime_series(
         Series[datetime -> Regime] with same index as df_btc
 
     Example:
-        >>> df = df_btc[['close', 'ema50', 'ema200']].copy()
+        >>> df = exchange.load_data("BTC/USDT:USDT", "1h")
+        >>> df = prepare_regime_data(df)  # Calculate EMAs if needed
         >>> regimes = calculate_regime_series(df, confirm_n=12)
         >>> print(regimes.value_counts())
 
     Notes:
         - First confirm_n-1 bars may use forward-fill from first valid detection
-        - Requires pre-calculated EMA50 and EMA200 in df_btc
+        - Use prepare_regime_data() to auto-calculate EMAs if missing
         - Hysteresis prevents rapid switching in choppy markets
     """
+    # Auto-prepare if EMAs missing
+    if 'ema50' not in df_btc.columns or 'ema200' not in df_btc.columns:
+        df_btc = prepare_regime_data(df_btc)
+
     # Extract required columns
     close = df_btc["close"]
     ema50 = df_btc["ema50"]
