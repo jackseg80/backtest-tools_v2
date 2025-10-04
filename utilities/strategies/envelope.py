@@ -36,10 +36,10 @@ class Envelope():
             src = (df["close"] + df["high"] + df["low"] + df["open"]) / 4
         # src = df["close"]
         df['ma_base'] = ta.trend.sma_indicator(close=src, window=self.ma_base_window).shift(1)
-        high_envelopes = [round(1/(1-e)-1, 3) for e in self.envelopes]
-        # low_envelopes = [round(abs(1/(1+e)-1), 3) for e in self.envelopes]
+        # Fixed: Use simple percentage offset instead of inverse formula
+        # Old formula (1/(1-e)-1) gave 5.26% for e=0.05 instead of 5%
         for i in range(1, len(self.envelopes) + 1):
-            df[f'ma_high_{i}'] = df['ma_base'] * (1 + high_envelopes[i-1])
+            df[f'ma_high_{i}'] = df['ma_base'] * (1 + self.envelopes[i-1])
             df[f'ma_low_{i}'] = df['ma_base'] * (1 - self.envelopes[i-1])
         
         self.df = df    

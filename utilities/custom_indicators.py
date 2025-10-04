@@ -1,9 +1,8 @@
 import math
 import numpy as np
 import pandas as pd
-import ta
-import math
 import requests
+import ta
 
 def get_n_columns(df, columns, n=1):
     dt = df.copy()

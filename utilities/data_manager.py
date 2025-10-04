@@ -204,11 +204,11 @@ class ExchangeDataManager:
                         if current_timestamp >= end_timestamp:
                             break
                     
-                    
+
                     self.pbar = tqdm(tasks)
                     results = await asyncio.gather(*tasks)
-                    await self.exchange.close()
                     self.pbar.close()
+                    # Note: exchange.close() is called outside the download loop
 
                     all_df = []
                     for i in results:
@@ -237,8 +237,11 @@ class ExchangeDataManager:
                             f"\tPas de données pour {coin} en {interval} sur cette période")
                 else:
                     print("\tDonnées déjà récupérées")
-                    
+
                 print("\033[H\033[J", end="")
+
+        # Close exchange connection after all downloads
+        await self.exchange.close()
 
     async def download_tf_with_semaphore(self, coin, interval, current_timestamp, sem: Semaphore):
         async with sem:
@@ -282,9 +285,8 @@ class ExchangeDataManager:
         :param start_timestamp: L'horodatage de début des données que vous souhaitez vérifier
         :param end_timestamp: L'horodatage du dernier point de données que vous souhaitez vérifier
         """
-        # On check la première data dispo sur le CEX
-
-        await self.exchange.close()
+        # Check for missing data without closing the exchange connection
+        # (connection managed at higher level)
 
         if os.path.isfile(file_name):
             df = pd.read_csv(file_name, index_col=0)
@@ -325,26 +327,31 @@ class ExchangeDataManager:
         except Exception:
             raise ValueError(f"Intervalle {interval} inconnu")
         
-    def explore_data(self): 
+    def explore_data(self):
         files_data = []
         for path, subdirs, files in os.walk(self.path_download):
             for name in files:
                 if os.path.join(path, name).endswith('.csv'):
                     current_file = os.path.join(path, name)
-                    file_split = current_file.split("\\")
+                    # Use os.sep for cross-platform compatibility instead of hardcoded "\\"
+                    file_split = current_file.split(os.sep)
                     try:
                         df_file = pd.read_csv(current_file)
                     except Exception:
                         continue
 
-                    files_data.append({
-                        "exchange": file_split[1],
-                        "timeframe": file_split[2],
-                        "pair": file_split[3][:-4],
-                        "occurences": len(df_file),
-                        "start_date": str(datetime.fromtimestamp(df_file.iloc[0]["date"]/1000)),
-                        "end_date": str(datetime.fromtimestamp(df_file.iloc[-1]["date"]/1000))
-                    })
+                    # Parse path components safely
+                    try:
+                        files_data.append({
+                            "exchange": file_split[-3] if len(file_split) >= 3 else "unknown",
+                            "timeframe": file_split[-2] if len(file_split) >= 2 else "unknown",
+                            "pair": file_split[-1][:-4],
+                            "occurences": len(df_file),
+                            "start_date": str(datetime.fromtimestamp(df_file.iloc[0]["date"]/1000)),
+                            "end_date": str(datetime.fromtimestamp(df_file.iloc[-1]["date"]/1000))
+                        })
+                    except (IndexError, KeyError):
+                        continue
                     
         return pd.DataFrame(files_data)        
 

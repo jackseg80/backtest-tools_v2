@@ -215,7 +215,8 @@ class BollingerTrendMulti():
                     close_price = actual_row['close']
                     trade_result = (close_price - current_positions[pos]['price']) / current_positions[pos]['price']
                     close_size = current_positions[pos]['size'] + current_positions[pos]['size']  * trade_result
-                    fee = close_size * taker_fee
+                    # Use maker fee for limit orders (close_reason will be "Limit")
+                    fee = close_size * maker_fee
                     wallet += close_size - current_positions[pos]['size'] - fee
                     long_exposition -= self.parameters_obj[pos]['wallet_exposure']
                     positions_exposition[pos]["long"] -= self.parameters_obj[pos]['wallet_exposure']
@@ -241,7 +242,8 @@ class BollingerTrendMulti():
                     close_price = actual_row['close']
                     trade_result = (current_positions[pos]['price'] - close_price) / current_positions[pos]['price']
                     close_size = current_positions[pos]['size'] + current_positions[pos]['size'] * trade_result
-                    fee = close_size * taker_fee
+                    # Use maker fee for limit orders (close_reason will be "Limit")
+                    fee = close_size * maker_fee
                     wallet += close_size - current_positions[pos]['size'] - fee
                     short_exposition -= self.parameters_obj[pos]['wallet_exposure']
                     positions_exposition[pos]["short"] -= self.parameters_obj[pos]['wallet_exposure']

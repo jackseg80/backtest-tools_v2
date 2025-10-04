@@ -2,12 +2,7 @@ import pandas as pd
 import seaborn as sns
 import numpy as np
 from tabulate import tabulate
-
-def get_n_columns(df, columns, n=1):
-    dt = df.copy()
-    for col in columns:
-        dt["n"+str(n)+"_"+col] = dt[col].shift(n)
-    return dt
+from utilities.custom_indicators import get_n_columns  # Removed duplicate function
 
 def get_metrics(df_trades, df_days):
     df_days_copy = df_days.copy()
@@ -92,15 +87,22 @@ def simple_backtest_analysis(
         
     avg_profit = df_trades[result_to_use].mean()  
      
-    try:
-        avg_profit_good_trades = good_trades[result_to_use].mean()   
-        avg_profit_bad_trades = bad_trades[result_to_use].mean() 
-        total_bad_trades = len(bad_trades)
+    # Calculate trade statistics (handle empty dataframes)
+    if not good_trades.empty:
+        avg_profit_good_trades = good_trades[result_to_use].mean()
         mean_good_trades_duration = good_trades['trades_duration'].mean()
-        mean_bad_trades_duration = bad_trades['trades_duration'].mean()
+    else:
+        avg_profit_good_trades = 0
+        mean_good_trades_duration = pd.Timedelta(0)
 
-    except Exception as e:
-        pass  
+    if not bad_trades.empty:
+        avg_profit_bad_trades = bad_trades[result_to_use].mean()
+        total_bad_trades = len(bad_trades)
+        mean_bad_trades_duration = bad_trades['trades_duration'].mean()
+    else:
+        avg_profit_bad_trades = 0
+        total_bad_trades = 0
+        mean_bad_trades_duration = pd.Timedelta(0)  
     
     global_win_rate = total_good_trades / total_trades
     max_trades_drawdown = df_trades['drawdown_pct'].max()
@@ -316,15 +318,22 @@ def multi_backtest_analysis(
         
     avg_profit = df_trades[result_to_use].mean()  
      
-    try:
-        avg_profit_good_trades = good_trades[result_to_use].mean()   
-        avg_profit_bad_trades = bad_trades[result_to_use].mean() 
-        total_bad_trades = len(bad_trades)
+    # Calculate trade statistics (handle empty dataframes)
+    if not good_trades.empty:
+        avg_profit_good_trades = good_trades[result_to_use].mean()
         mean_good_trades_duration = good_trades['trades_duration'].mean()
-        mean_bad_trades_duration = bad_trades['trades_duration'].mean()
+    else:
+        avg_profit_good_trades = 0
+        mean_good_trades_duration = pd.Timedelta(0)
 
-    except Exception as e:
-        pass  
+    if not bad_trades.empty:
+        avg_profit_bad_trades = bad_trades[result_to_use].mean()
+        total_bad_trades = len(bad_trades)
+        mean_bad_trades_duration = bad_trades['trades_duration'].mean()
+    else:
+        avg_profit_bad_trades = 0
+        total_bad_trades = 0
+        mean_bad_trades_duration = pd.Timedelta(0)  
     
     global_win_rate = total_good_trades / total_trades
     max_trades_drawdown = df_trades['drawdown_pct'].max()
@@ -442,15 +451,9 @@ def multi_backtest_analysis(
         ["Exposition max Long", "{}".format(round(max_long_exposition, 2))],
         ["Exposition max Short", "{}".format(round(max_short_exposition, 2))],
         ]
-        try:
-            table_exposition = table_exposition + [
-                ["VAR moyenne", "{} %".format(round(mean_risk, 2))],
-                ["VAR Max", "{} %".format(round(max_risk, 2))],
-                ["VAR Min", "{} %".format(round(min_risk, 2))],
-            ]
-        except Exception as e:
-            pass
-        
+        # Note: VAR metrics (mean_risk, max_risk, min_risk) are not currently calculated
+        # TODO: Implement VAR metrics calculation if needed
+
         headers = ["Exposition", ""]
         print(tabulate(table_exposition, headers, tablefmt="fancy_outline"))
         
@@ -598,15 +601,22 @@ def backtest_analysis_gui(self,
         
     avg_profit = df_trades[result_to_use].mean()  
      
-    try:
-        avg_profit_good_trades = good_trades[result_to_use].mean()   
-        avg_profit_bad_trades = bad_trades[result_to_use].mean() 
-        total_bad_trades = len(bad_trades)
+    # Calculate trade statistics (handle empty dataframes)
+    if not good_trades.empty:
+        avg_profit_good_trades = good_trades[result_to_use].mean()
         mean_good_trades_duration = good_trades['trades_duration'].mean()
-        mean_bad_trades_duration = bad_trades['trades_duration'].mean()
+    else:
+        avg_profit_good_trades = 0
+        mean_good_trades_duration = pd.Timedelta(0)
 
-    except Exception as e:
-        pass  
+    if not bad_trades.empty:
+        avg_profit_bad_trades = bad_trades[result_to_use].mean()
+        total_bad_trades = len(bad_trades)
+        mean_bad_trades_duration = bad_trades['trades_duration'].mean()
+    else:
+        avg_profit_bad_trades = 0
+        total_bad_trades = 0
+        mean_bad_trades_duration = pd.Timedelta(0)  
     
     global_win_rate = total_good_trades / total_trades
     max_trades_drawdown = df_trades['drawdown_pct'].max()
@@ -724,15 +734,9 @@ def backtest_analysis_gui(self,
         ["Exposition max Long", "{}".format(round(max_long_exposition, 2))],
         ["Exposition max Short", "{}".format(round(max_short_exposition, 2))],
         ]
-        try:
-            table_exposition = table_exposition + [
-                ["VAR moyenne", "{} %".format(round(mean_risk, 2))],
-                ["VAR Max", "{} %".format(round(max_risk, 2))],
-                ["VAR Min", "{} %".format(round(min_risk, 2))],
-            ]
-        except Exception as e:
-            pass
-        
+        # Note: VAR metrics (mean_risk, max_risk, min_risk) are not currently calculated
+        # TODO: Implement VAR metrics calculation if needed
+
         headers = ["Exposition", ""]
         self.textbox.insert("0.0", tabulate(table_exposition, headers, tablefmt="fancy_outline"))
         
