@@ -103,7 +103,7 @@ class BacktestComparator:
                 df_trades['trade_result_pct'] = 0.0
 
         # Win rate
-        if len(df_trades) > 0:
+        if len(df_trades) > 0 and 'trade_result' in df_trades.columns:
             winning_trades = len(df_trades[df_trades['trade_result'] > 0])
             win_rate = (winning_trades / len(df_trades)) * 100
         else:
