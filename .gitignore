@@ -36,9 +36,13 @@ nul
 .roo/
 
 # Python-ctapi (if it's a separate package)
-python-ctapi/build/
-python-ctapi/dist/
-python-ctapi/*.egg-info/
+python-ctapi/
+
+# Live trading code (not for backtest)
+strategies/envelopes/live/
+
+# Temporary files
+temp_*.py
 
 # Notebook outputs and backups
 *_backup.ipynb

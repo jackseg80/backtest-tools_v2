@@ -70,7 +70,8 @@ cycles = {
     "Bull 2020-2021": {"start": "2020-03-13", "end": "2021-11-10"},
     "Bear 2021-2022": {"start": "2021-11-10", "end": "2022-11-21"},
     "Recovery 2023": {"start": "2022-11-22", "end": "2023-12-31"},
-    "Bull 2024": {"start": "2024-01-01", "end": "2024-12-31"},
+    "Bull 2024": {"start": "2024-01-01", "end": "2025-10-03"},
+    "COMPLET 2020-2024": {"start": "2020-03-13", "end": "2025-10-03"},
 }
 
 # Parametres backtest
@@ -114,7 +115,9 @@ for pair in pair_list:
 print("Donnees chargees\n")
 
 # Ouvrir le fichier texte pour ecrire les resultats
-output_file = "scripts/resultats/backtest_cycles_detailed.txt"
+from datetime import datetime
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+output_file = f"scripts/resultats/backtest_cycles_detailed_{timestamp}.txt"
 with open(output_file, 'w', encoding='utf-8') as f:
     f.write("="*80 + "\n")
     f.write("BACKTESTS PAR CYCLES DE MARCHE\n")
