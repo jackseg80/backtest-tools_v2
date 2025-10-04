@@ -79,13 +79,28 @@ class BacktestComparator:
     def _calculate_metrics(self, bt: BacktestResult) -> Dict[str, float]:
         """Calcule toutes les métriques pour un backtest."""
         df_days = bt.df_days
-        df_trades = bt.df_trades
+        df_trades = bt.df_trades.copy()
 
         # Wallet final
         final_wallet = df_days['wallet'].iloc[-1] if len(df_days) > 0 else self.initial_wallet
 
         # Performance totale
         total_perf = ((final_wallet / self.initial_wallet) - 1) * 100
+
+        # Calculer trade_result si absent (compatibilité avec EnvelopeMulti_v2)
+        if len(df_trades) > 0 and 'trade_result' not in df_trades.columns:
+            if all(col in df_trades.columns for col in ['close_trade_size', 'open_trade_size', 'open_fee', 'close_fee']):
+                df_trades['trade_result'] = (
+                    df_trades["close_trade_size"] -
+                    df_trades["open_trade_size"] -
+                    df_trades["open_fee"] -
+                    df_trades["close_fee"]
+                )
+                df_trades['trade_result_pct'] = df_trades['trade_result'] / df_trades["open_trade_size"]
+            else:
+                # Fallback: pas de données de trades détaillées
+                df_trades['trade_result'] = 0.0
+                df_trades['trade_result_pct'] = 0.0
 
         # Win rate
         if len(df_trades) > 0:
@@ -129,14 +144,16 @@ class BacktestComparator:
         # Fees totaux (si présent dans df_trades)
         if 'fee' in df_trades.columns:
             total_fees = df_trades['fee'].sum()
+        elif 'open_fee' in df_trades.columns and 'close_fee' in df_trades.columns:
+            total_fees = df_trades['open_fee'].sum() + df_trades['close_fee'].sum()
         else:
             total_fees = 0.0
 
-        # PnL moyen par trade
-        if n_trades > 0 and 'trade_result' in df_trades.columns:
-            avg_pnl = df_trades['trade_result'].mean() * 100
-            max_win = df_trades['trade_result'].max() * 100
-            max_loss = df_trades['trade_result'].min() * 100
+        # PnL moyen par trade (en %)
+        if n_trades > 0 and 'trade_result_pct' in df_trades.columns:
+            avg_pnl = df_trades['trade_result_pct'].mean() * 100
+            max_win = df_trades['trade_result_pct'].max() * 100
+            max_loss = df_trades['trade_result_pct'].min() * 100
         else:
             avg_pnl = 0.0
             max_win = 0.0
