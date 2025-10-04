@@ -5,12 +5,13 @@ import numpy as np
 from scipy.stats import norm
 
 class ValueAtRisk:
-    def __init__(self, df_list):
+    def __init__(self, df_list, initial_balance=1000):
         self.df_list = df_list
         self.cov = None
         self.avg_return = None
         self.conf_level = 0.05
-        self.usd_balance = 1
+        self.initial_balance = initial_balance
+        self.current_balance = initial_balance
 
     def update_cov(self, current_date, occurance_data=1000):
         returns = pd.DataFrame()
@@ -18,21 +19,34 @@ class ValueAtRisk:
         for pair in self.df_list:
             temp_df = self.df_list[pair].copy()
             try:
-                iloc_date = int(temp_df.loc[current_date]["iloc"])
-                if math.isnan(iloc_date) or iloc_date-occurance_data < 0:
+                # Check if iloc column exists and get value
+                iloc_value = temp_df.loc[current_date]["iloc"]
+                # Check for NaN before converting to int
+                if pd.isna(iloc_value):
+                    returns["long_"+pair] = -1
+                    returns["short_"+pair] = -1
+                    continue
+
+                iloc_date = int(iloc_value)
+                if iloc_date - occurance_data < 0:
                     returns["long_"+pair] = -1
                     returns["short_"+pair] = -1
                 else:
                     returns["long_"+pair] = temp_df.iloc[iloc_date-occurance_data:iloc_date].reset_index()["close"].pct_change()
                     returns["short_"+pair] = -temp_df.iloc[iloc_date-occurance_data:iloc_date].reset_index()["close"].pct_change()
-            except Exception as e:
+            except (KeyError, ValueError, IndexError) as e:
+                # Handle missing dates, conversion errors, or index issues
                 returns["long_"+pair] = -1
                 returns["short_"+pair] = -1
         # Generate Var-Cov matrix
         del returns["temp"]
         returns = returns.iloc[:-1]
         self.cov = returns.cov()
-        self.cov = self.cov.replace(0.0, 1.0)
+
+        # Replace NaN values with 0 (instead of replacing 0 with 1 which distorts the matrix)
+        # Zero covariance means no correlation, which is valid
+        self.cov = self.cov.fillna(0.0)
+
         # Calculate mean returns for each stock
         self.avg_return = returns.mean()
         return returns
@@ -69,5 +83,10 @@ class ValueAtRisk:
 
         #Finally, we can calculate the VaR at our confidence interval
         var_1d1 = usd_in_position - cutoff1
-        
-        return var_1d1 / self.usd_balance * 100
+
+        # Return VaR as percentage of current balance (not fixed 1)
+        return var_1d1 / self.current_balance * 100
+
+    def update_balance(self, new_balance):
+        """Update current balance for VaR calculation"""
+        self.current_balance = new_balance
