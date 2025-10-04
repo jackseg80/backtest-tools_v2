@@ -94,6 +94,7 @@ extreme_leverage_threshold = 50
 # Configurations de test
 test_configs = [
     {"name": "LONG ONLY", "type": ["long", ""]},
+    {"name": "SHORT ONLY", "type": ["", "short"]},
     {"name": "LONG + SHORT", "type": ["long", "short"]}
 ]
 
