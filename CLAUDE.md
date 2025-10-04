@@ -61,8 +61,11 @@ All strategies follow a consistent pattern with three methods:
 **Strategy Classes** (in `utilities/strategies/`):
 - `BollingerTrendMulti` (`boltrend_multi.py`) - Bollinger Bands + MA trend filter
 - `TrixMulti` (`trixMulti.py`) - TRIX oscillator strategy
-- `EnvelopeMulti` (`envelopeMulti.py`) - Moving average envelope strategy
+- `EnvelopeMulti_v2` (`envelopeMulti_v2.py`) - **[PRODUCTION]** Moving average envelope strategy with improved margin/liquidation management
+- `EnvelopeMulti` (`envelopeMulti.py`) - **[LEGACY]** Original envelope implementation (bug with leverage)
 - `Envelope` (`envelope.py`) - Single-pair envelope implementation
+
+**Important**: Always use V2 engines for production/live trading. V1 engines have known bugs with leverage calculation and are kept only for legacy comparison.
 
 **Multi-coin Strategy Pattern**:
 - Takes `df_list` dict mapping pair names to dataframes
@@ -129,3 +132,57 @@ df = exchange.load_data(coin="BTC/USDT:USDT", interval="1h")
 - Strategy notebooks/research in `strategies/{strategy_name}/`
 - Historical data stored in `database/exchanges/`
 - Test/experimental files in `test/`
+- **Scripts** in `scripts/` with results saved to `scripts/resultats/`
+
+## Scripts and Automation
+
+**Testing Scripts** (in `scripts/`):
+- `test_cycles.py` - Tests strategy performance across different market cycles (Bull 2020-2021, Bear 2022, Recovery 2023, Bull 2024)
+  - Generates CSV summary: `scripts/resultats/backtest_cycles_results.csv`
+  - Generates detailed CSV per cycle: `scripts/resultats/trades_{cycle}.csv` and `scripts/resultats/days_{cycle}.csv`
+- `test_cycles_detailed.py` - Extended version with LONG ONLY vs LONG+SHORT comparison
+  - Tests all 28 pairs across all cycles
+  - Generates comprehensive text report: `scripts/resultats/backtest_cycles_detailed.txt`
+  - Shows excluded pairs and reasons (insufficient data)
+
+**Running Scripts**:
+```bash
+cd d:\Python\Cryptobots\Backtest-Tools-V2
+python scripts/test_cycles.py              # Quick summary
+python scripts/test_cycles_detailed.py     # Full analysis
+```
+
+## Envelope Strategy Configuration (Production)
+
+**Notebook**: `strategies/envelopes/multi_envelope.ipynb`
+**Live Bot**: `strategies/envelopes/live/live_multi_envelope.py`
+
+### Key Configuration
+The notebook is configured to match the live trading bot exactly:
+
+```python
+# Centralized configuration
+BACKTEST_LEVERAGE = 10  # Must match live bot leverage
+
+# Size values from live bot (automatically adjusted for backtest)
+params_live = {
+    "BTC/USDT:USDT": {"size": 0.1, "ma_base_window": 7, "envelopes": [0.07, 0.1, 0.15]},
+    # ... other pairs
+}
+
+# Automatic adjustment for V2 engine
+params[pair]["size"] = params_live[pair]["size"] / BACKTEST_LEVERAGE
+```
+
+### Backtest Parameters (Aligned with Live)
+- `reinvest = True` - Recalculates sizing at each trade (matches live behavior)
+- `leverage = 10` - Cross 10x leverage
+- `stop_loss = 0.25` - 25% stop loss
+- `risk_mode = "scaling"` - Notional scales with leverage
+- `maker_fee = 0.0002, taker_fee = 0.0006` - Bitget fees
+
+### Important Notes
+1. **MATIC/USDT:USDT is commented out** in the notebook (disabled in live production)
+2. **Size adjustment is automatic** - no need to manually calculate
+3. **V2 engine messages are silenced** - clean backtest output without debug logs
+4. To change leverage, only modify `BACKTEST_LEVERAGE` in one place

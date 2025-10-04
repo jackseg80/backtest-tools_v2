@@ -279,39 +279,33 @@ class EnvelopeMulti_v2():
         if risk_mode not in ["neutral", "scaling", "hybrid"]:
             raise ValueError(f"Invalid risk_mode: {risk_mode}. Must be 'neutral', 'scaling', or 'hybrid'")
 
-        # V2: Handle base_size (backward compatibility)
-        if base_size is None:
-            # Use size from params (old behavior)
-            print("[WARNING] base_size not provided, using params[pair]['size']. Consider migrating to base_size parameter.")
-            use_legacy_size = True
-        else:
-            # Override all params with base_size
-            use_legacy_size = False
-            for pair in params:
-                params[pair]['base_size'] = base_size
+        # V2: Base-size resolver (priority: arg > params.base_size > params.size)
+        def _resolve_base_size(pair: str) -> float:
+            """Resolve base_size for a pair with fallback chain."""
+            if base_size is not None:
+                return float(base_size)
+            p = params[pair]
+            if 'base_size' in p:
+                return float(p['base_size'])
+            if 'size' in p:
+                return float(p['size'])
+            raise KeyError(f"Missing size for {pair}: need 'base_size' or legacy 'size'.")
 
         # V2: Margin management
         used_margin = 0.0
         equity = initial_wallet
 
         # V2: Risk mode configuration
-        print(f"[Risk Mode] {risk_mode.upper()} (leverage={leverage}x, base_size={base_size})")
+        # print(f"[Risk Mode] {risk_mode.upper()} (leverage={leverage}x)")
 
-        if risk_mode == "neutral":
-            # Notional constant: effective_size = base_size / leverage
-            # Ignore auto_adjust_size (always adjust in neutral mode)
-            if not use_legacy_size:
-                print(f"  -> Neutral mode: notional = equity * base_size (constant)")
-        elif risk_mode == "scaling":
-            # Notional scales with leverage: effective_size = base_size * leverage
-            # Force auto_adjust_size=False
-            if auto_adjust_size:
-                print(f"  -> Scaling mode: ignoring auto_adjust_size (notional scales with leverage)")
-            print(f"  -> Scaling mode: notional = equity * base_size * leverage")
-        elif risk_mode == "hybrid":
-            # Notional scales but capped: min(base_size * leverage, max_expo_cap)
-            print(f"  -> Hybrid mode: notional = min(equity * base_size * leverage, equity * {max_expo_cap})")
-            print(f"  -> Cap will activate when leverage > {max_expo_cap / base_size:.0f}x" if base_size else "")
+        # if risk_mode == "neutral":
+        #     print(f"  -> Neutral mode: notional = equity * base_size (constant)")
+        # elif risk_mode == "scaling":
+        #     if auto_adjust_size:
+        #         print(f"  -> Scaling mode: ignoring auto_adjust_size (notional scales with leverage)")
+        #     print(f"  -> Scaling mode: notional = equity * base_size * leverage")
+        # elif risk_mode == "hybrid":
+        #     print(f"  -> Hybrid mode: notional = min(equity * base_size * leverage, equity * {max_expo_cap})")
 
         # V2: Adjust per_pair_cap for extreme leverage (optional hardening)
         effective_per_pair_cap = per_pair_cap
@@ -335,7 +329,9 @@ class EnvelopeMulti_v2():
             'maker_fills': 0,
             'taker_fills': 0,
             'total_maker_fees': 0.0,
-            'total_taker_fees': 0.0
+            'total_taker_fees': 0.0,
+            'added_margin': 0.0,
+            'released_margin': 0.0
         }
 
         # V2: Exposure & margin tracking
@@ -432,14 +428,16 @@ class EnvelopeMulti_v2():
                         # Use apply_close for proper PnL/fee calculation
                         pnl, fee = apply_close(current_positions[pair], close_price, taker_fee, is_taker=True)
                         wallet += pnl
-                        used_margin -= current_positions[pair].get('init_margin', 0)
+                        released = current_positions[pair].get('init_margin', 0)
+                        used_margin = max(0.0, used_margin - released)
+                        event_counters['released_margin'] += released
 
                         # Force wallet to 0 if negative (total loss)
                         if wallet < 0:
                             wallet = 0
 
                         liquidation_date = str(index.year) + "-" + str(index.month) + "-" + str(index.day)
-                        print(f"LIQUIDATION {liquidation_date}: {pair} LONG @ {liq_price:.2f} (entry: {current_positions[pair]['price']:.2f})")
+                        # print(f"LIQUIDATION {liquidation_date}: {pair} LONG @ {liq_price:.2f} (entry: {current_positions[pair]['price']:.2f})")
 
                         trades.append({
                             "pair": pair,
@@ -475,13 +473,15 @@ class EnvelopeMulti_v2():
 
                         pnl, fee = apply_close(current_positions[pair], close_price, taker_fee, is_taker=True)
                         wallet += pnl
-                        used_margin -= current_positions[pair].get('init_margin', 0)
+                        released = current_positions[pair].get('init_margin', 0)
+                        used_margin = max(0.0, used_margin - released)
+                        event_counters['released_margin'] += released
 
                         if wallet < 0:
                             wallet = 0
 
                         liquidation_date = str(index.year) + "-" + str(index.month) + "-" + str(index.day)
-                        print(f"LIQUIDATION {liquidation_date}: {pair} SHORT @ {liq_price:.2f} (entry: {current_positions[pair]['price']:.2f})")
+                        # print(f"LIQUIDATION {liquidation_date}: {pair} SHORT @ {liq_price:.2f} (entry: {current_positions[pair]['price']:.2f})")
 
                         trades.append({
                             "pair": pair,
@@ -631,6 +631,9 @@ class EnvelopeMulti_v2():
                     close_size = current_positions[pair]['size'] + current_positions[pair]['size'] * trade_result
                     fee = close_size * maker_fee
                     wallet += close_size - current_positions[pair]['size'] - fee
+                    released = current_positions[pair].get('init_margin', 0)
+                    used_margin = max(0.0, used_margin - released)
+                    event_counters['released_margin'] += released
 
                     # Check if liquidated and clamp wallet before recording trade
                     if use_liquidation and wallet <= 0:
@@ -675,6 +678,9 @@ class EnvelopeMulti_v2():
                     close_size = current_positions[pair]['size'] + current_positions[pair]['size'] * trade_result
                     fee = close_size * maker_fee
                     wallet += close_size - current_positions[pair]['size'] - fee
+                    released = current_positions[pair].get('init_margin', 0)
+                    used_margin = max(0.0, used_margin - released)
+                    event_counters['released_margin'] += released
 
                     # Check if liquidated and clamp wallet before recording trade
                     if use_liquidation and wallet <= 0:
@@ -744,19 +750,15 @@ class EnvelopeMulti_v2():
                             base_capital = initial_wallet
 
                         # V2: Calculate notional according to risk_mode
-                        if use_legacy_size:
-                            # Backward compatibility: use old formula
-                            notional = (params[pair]["size"] * base_capital * leverage) / len(params[pair]["envelopes"])
-                        else:
-                            # New risk_mode system
-                            notional = calculate_notional_per_level(
-                                equity=base_capital,
-                                base_size=params[pair]['base_size'],
-                                leverage=leverage,
-                                n_levels=len(params[pair]["envelopes"]),
-                                risk_mode=risk_mode,
-                                max_expo_cap=max_expo_cap
-                            )
+                        eff_base = _resolve_base_size(pair)
+                        notional = calculate_notional_per_level(
+                            equity=base_capital,
+                            base_size=eff_base,
+                            leverage=leverage,
+                            n_levels=len(params[pair]["envelopes"]),
+                            risk_mode=risk_mode,
+                            max_expo_cap=max_expo_cap
+                        )
 
                         qty = notional / open_price
                         init_margin = notional / leverage
@@ -786,11 +788,13 @@ class EnvelopeMulti_v2():
                         pos_size = notional - fee
                         wallet -= fee
                         used_margin += init_margin
+                        event_counters['added_margin'] += init_margin
 
                         # Check if liquidated after paying fees
                         if use_liquidation and wallet <= 0:
                             wallet = 0
-                            used_margin -= init_margin  # Rollback margin
+                            used_margin = max(0.0, used_margin - init_margin)  # Rollback margin with clamp
+                            event_counters['added_margin'] -= init_margin  # Rollback counter
                             liquidation_date = str(index.year) + "-" + str(index.month) + "-" + str(index.day)
                             print(f"Liquidation le {liquidation_date}: Plus d'argent dans le portefeuille.")
                             is_liquidated = True
@@ -861,19 +865,15 @@ class EnvelopeMulti_v2():
                             base_capital = initial_wallet
 
                         # V2: Calculate notional according to risk_mode
-                        if use_legacy_size:
-                            # Backward compatibility: use old formula
-                            notional = (params[pair]["size"] * base_capital * leverage) / len(params[pair]["envelopes"])
-                        else:
-                            # New risk_mode system
-                            notional = calculate_notional_per_level(
-                                equity=base_capital,
-                                base_size=params[pair]['base_size'],
-                                leverage=leverage,
-                                n_levels=len(params[pair]["envelopes"]),
-                                risk_mode=risk_mode,
-                                max_expo_cap=max_expo_cap
-                            )
+                        eff_base = _resolve_base_size(pair)
+                        notional = calculate_notional_per_level(
+                            equity=base_capital,
+                            base_size=eff_base,
+                            leverage=leverage,
+                            n_levels=len(params[pair]["envelopes"]),
+                            risk_mode=risk_mode,
+                            max_expo_cap=max_expo_cap
+                        )
 
                         qty = notional / open_price
                         init_margin = notional / leverage
@@ -897,11 +897,13 @@ class EnvelopeMulti_v2():
                         pos_size = notional - fee
                         wallet -= fee
                         used_margin += init_margin
+                        event_counters['added_margin'] += init_margin
 
                         # Check if liquidated after paying fees
                         if use_liquidation and wallet <= 0:
                             wallet = 0
-                            used_margin -= init_margin  # Rollback margin
+                            used_margin = max(0.0, used_margin - init_margin)  # Rollback margin with clamp
+                            event_counters['added_margin'] -= init_margin  # Rollback counter
                             liquidation_date = str(index.year) + "-" + str(index.month) + "-" + str(index.day)
                             print(f"Liquidation le {liquidation_date}: Plus d'argent dans le portefeuille.")
                             is_liquidated = True
