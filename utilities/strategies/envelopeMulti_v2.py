@@ -241,7 +241,7 @@ class EnvelopeMulti_v2():
     def run_backtest(self, initial_wallet=1000, leverage=1, maker_fee=0.0002, taker_fee=0.0006, stop_loss=1, reinvest=True, liquidation=True,
                      gross_cap=1.5, per_side_cap=1.0, per_pair_cap=0.3, margin_cap=0.8, use_kill_switch=True,
                      auto_adjust_size=True, extreme_leverage_threshold=50,
-                     risk_mode="neutral", base_size=None, max_expo_cap=2.0):
+                     risk_mode="neutral", base_size=None, max_expo_cap=2.0, params_adapter=None):
         """
         Run backtest with V2 margin system and configurable risk mode.
 
@@ -259,6 +259,11 @@ class EnvelopeMulti_v2():
         max_expo_cap : float
             (HYBRID mode only) Maximum total notional as multiple of equity.
             Example: 2.0 means max notional = 2x equity
+
+        params_adapter : ParamsAdapter, optional
+            Dynamic parameter adapter that modifies params based on date/pair.
+            If None, uses static self.params throughout the backtest.
+            Example: RegimeBasedAdapter to adapt envelopes based on market regime
         """
         params = self.params
         df_ini = self.df_list[self.oldest_pair][:]
@@ -730,7 +735,11 @@ class EnvelopeMulti_v2():
                     continue
                 actual_position = None
                 actual_row = self.df_list[pair].loc[index]
-                for i in range(1, len(params[pair]["envelopes"]) + 1):
+
+                # V2: Get adapted params if adapter provided
+                effective_params = params_adapter.get_params_at_date(index, pair) if params_adapter else params[pair]
+
+                for i in range(1, len(effective_params["envelopes"]) + 1):
                     if pair in current_positions:
                         actual_position = current_positions[pair]
                     if (actual_position and actual_position["side"] == "SHORT") or (actual_row[f"open_long_{i}"] == False) or (pair in closed_pair):
@@ -739,9 +748,10 @@ class EnvelopeMulti_v2():
                     if actual_position and actual_position["envelope"] >= i:
                         continue
                     if actual_row[f"open_long_{i}"]:
-                        # Realistic slippage: since low touched ma_low, we likely get filled at or slightly above ma_low
-                        # Conservative: use ma_low (best case) or add small slippage
-                        open_price = actual_row[f'ma_low_{i}']
+                        # V2: Recalculate envelope price with adapted params
+                        ma_base = actual_row['ma_base']
+                        envelope_pct = effective_params["envelopes"][i-1]
+                        open_price = ma_base * (1 - envelope_pct)
 
                         # V2: Calculate notional and qty based on equity (not wallet)
                         if reinvest or (wallet <= initial_wallet):
@@ -749,13 +759,13 @@ class EnvelopeMulti_v2():
                         else:
                             base_capital = initial_wallet
 
-                        # V2: Calculate notional according to risk_mode
+                        # V2: Calculate notional according to risk_mode (use effective_params)
                         eff_base = _resolve_base_size(pair)
                         notional = calculate_notional_per_level(
                             equity=base_capital,
                             base_size=eff_base,
                             leverage=leverage,
-                            n_levels=len(params[pair]["envelopes"]),
+                            n_levels=len(effective_params["envelopes"]),
                             risk_mode=risk_mode,
                             max_expo_cap=max_expo_cap
                         )
@@ -846,7 +856,11 @@ class EnvelopeMulti_v2():
                     continue
                 actual_position = None
                 actual_row = self.df_list[pair].loc[index]
-                for i in range(1, len(params[pair]["envelopes"]) + 1):
+
+                # V2: Get adapted params if adapter provided
+                effective_params = params_adapter.get_params_at_date(index, pair) if params_adapter else params[pair]
+
+                for i in range(1, len(effective_params["envelopes"]) + 1):
                     if pair in current_positions:
                         actual_position = current_positions[pair]
                     if (actual_position and actual_position["side"] == "LONG") or actual_row[f"open_short_{i}"] == False or (pair in closed_pair):
@@ -854,9 +868,10 @@ class EnvelopeMulti_v2():
                     if actual_position and actual_position["envelope"] >= i:
                         continue
                     if actual_row[f"open_short_{i}"]:
-                        # Realistic slippage: since high touched ma_high, we likely get filled at or slightly below ma_high
-                        # Conservative: use ma_high (best case) or add small slippage
-                        open_price = actual_row[f'ma_high_{i}']
+                        # V2: Recalculate envelope price with adapted params
+                        ma_base = actual_row['ma_base']
+                        envelope_pct = effective_params["envelopes"][i-1]
+                        open_price = ma_base / (1 - envelope_pct)
 
                         # V2: Calculate notional and qty based on equity (not wallet)
                         if reinvest or (wallet <= initial_wallet):
@@ -864,13 +879,13 @@ class EnvelopeMulti_v2():
                         else:
                             base_capital = initial_wallet
 
-                        # V2: Calculate notional according to risk_mode
+                        # V2: Calculate notional according to risk_mode (use effective_params)
                         eff_base = _resolve_base_size(pair)
                         notional = calculate_notional_per_level(
                             equity=base_capital,
                             base_size=eff_base,
                             leverage=leverage,
-                            n_levels=len(params[pair]["envelopes"]),
+                            n_levels=len(effective_params["envelopes"]),
                             risk_mode=risk_mode,
                             max_expo_cap=max_expo_cap
                         )
