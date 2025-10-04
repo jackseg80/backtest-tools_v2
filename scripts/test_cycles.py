@@ -43,12 +43,12 @@ for pair, p in params_live.items():
     params[pair] = p.copy()
     params[pair]["size"] = p["size"] / BACKTEST_LEVERAGE
 
-# Phases de cycles crypto (basees sur l'historique Bitcoin)
+# Phases de cycles crypto (dates exactes basées sur l'historique Bitcoin)
 cycles = {
-    "Bull 2020-2021": {"start": "2020-04-01", "end": "2021-11-30", "description": "COVID bottom to ATH 69k"},
-    "Bear 2022": {"start": "2022-01-01", "end": "2022-12-31", "description": "Crash Luna, FTX, crypto winter"},
-    "Recovery 2023": {"start": "2023-01-01", "end": "2023-12-31", "description": "Bottom 15k to Recovery 44k"},
-    "Bull 2024": {"start": "2024-01-01", "end": "2024-12-31", "description": "ETF Bitcoin, new ATH"},
+    "Bull 2020-2021": {"start": "2020-03-13", "end": "2021-11-10", "description": "COVID bottom $3,850 -> ATH $69,000"},
+    "Bear 2021-2022": {"start": "2021-11-10", "end": "2022-11-21", "description": "ATH $69k -> FTX crash bottom $15,479"},
+    "Recovery 2023": {"start": "2022-11-22", "end": "2023-12-31", "description": "FTX bottom $16k -> Recovery $42k"},
+    "Bull 2024": {"start": "2024-01-01", "end": "2024-12-31", "description": "ETF approval -> new ATH $73,800"},
 }
 
 # Paramètres backtest

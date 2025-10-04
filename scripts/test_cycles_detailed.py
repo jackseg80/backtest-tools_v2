@@ -53,6 +53,7 @@ params_live = {
     # "MATIC/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},  # Désactivé en live
     "NEAR/USDT:USDT":{ "src": "close", "ma_base_window": 5, "envelopes": envelope_std, "size": size_std,},
     "SAND/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},
+    "SOL/USDT:USDT":{ "src": "close", "ma_base_window": 7, "envelopes": [0.07, 0.1, 0.12], "size": size_std,},
     "SUSHI/USDT:USDT":{ "src": "close", "ma_base_window": 8, "envelopes": envelope_std, "size": size_std,},
     "THETA/USDT:USDT":{ "src": "close", "ma_base_window": 5, "envelopes": envelope_std, "size": size_std,},
     "UNI/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},
@@ -66,9 +67,9 @@ for pair, p in params_live.items():
     params[pair]["size"] = p["size"] / BACKTEST_LEVERAGE
 
 cycles = {
-    "Bull 2020-2021": {"start": "2020-04-01", "end": "2021-11-30"},
-    "Bear 2022": {"start": "2022-01-01", "end": "2022-12-31"},
-    "Recovery 2023": {"start": "2023-01-01", "end": "2023-12-31"},
+    "Bull 2020-2021": {"start": "2020-03-13", "end": "2021-11-10"},
+    "Bear 2021-2022": {"start": "2021-11-10", "end": "2022-11-21"},
+    "Recovery 2023": {"start": "2022-11-22", "end": "2023-12-31"},
     "Bull 2024": {"start": "2024-01-01", "end": "2024-12-31"},
 }
 
