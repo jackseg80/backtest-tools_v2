@@ -10,7 +10,10 @@ database/
 .idea/
 *.code-workspace
 
-# Debug and test files
+# Scripts folder (dev tools)
+scripts/
+
+# Debug and test files (legacy - now in scripts/)
 test/
 tests/
 debug_*.py
@@ -22,6 +25,7 @@ reload_module_notebook.py
 # Temporary results
 backtest_cycles_results.txt
 *.txt.bak
+nul
 
 # Claude/AI assistants
 .claude/
