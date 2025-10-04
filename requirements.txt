@@ -3,6 +3,7 @@ matplotlib
 numpy
 pandas
 pandas-ta
+python-dateutil
 scipy
 seaborn
 statsmodels

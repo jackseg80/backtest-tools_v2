@@ -108,6 +108,10 @@ def simple_backtest_analysis(
     max_trades_drawdown = df_trades['drawdown_pct'].max()
     max_days_drawdown = df_days['drawdown_pct'].max()
     final_wallet = df_days.iloc[-1]['wallet']
+
+    # WARNING: For multi-pair backtests, buy&hold is calculated on the 'price' column
+    # which typically represents only the oldest_pair, not a basket of all pairs
+    # This makes the comparison biased for multi-asset strategies
     buy_and_hold_pct = (df_days.iloc[-1]['price'] - df_days.iloc[0]['price']) / df_days.iloc[0]['price']
     buy_and_hold_wallet = initial_wallet + initial_wallet * buy_and_hold_pct
     vs_hold_pct = (final_wallet - buy_and_hold_wallet)/buy_and_hold_wallet

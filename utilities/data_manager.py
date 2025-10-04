@@ -6,6 +6,7 @@ import pytz
 import pandas as pd
 import os
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 from tqdm.auto import tqdm
 from asyncio import Semaphore
 
@@ -93,8 +94,10 @@ class ExchangeDataManager:
             "interval_ms": 604800000
         },
         "1M": {
-            "timedelta": timedelta(days=30),
-            "interval_ms": 2629746000
+            # Use relativedelta for accurate month calculation (28-31 days)
+            # instead of fixed 30 days which causes misalignment
+            "timedelta": relativedelta(months=1),
+            "interval_ms": 2629746000  # Average month in ms (still approximate)
         }
     }
 
