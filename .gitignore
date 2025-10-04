@@ -13,6 +13,10 @@ database/
 # Scripts folder (dev tools)
 scripts/
 
+# Logs
+logs/
+*.log
+
 # Debug and test files (legacy - now in scripts/)
 test/
 tests/
