@@ -3,17 +3,43 @@ import pandas as pd
 import math
 import numpy as np
 from scipy.stats import norm
+from typing import Dict, Tuple
+
 
 class ValueAtRisk:
-    def __init__(self, df_list, initial_balance=1000):
+    """
+    Calculate Value at Risk (VaR) for a multi-asset portfolio.
+
+    VaR estimates the maximum potential loss over a specific time period
+    at a given confidence level, using variance-covariance method.
+    """
+
+    def __init__(self, df_list: Dict[str, pd.DataFrame], initial_balance: float = 1000):
+        """
+        Initialize VaR calculator.
+
+        Args:
+            df_list: Dictionary mapping pair names to OHLCV DataFrames
+            initial_balance: Initial portfolio balance in USD
+        """
         self.df_list = df_list
         self.cov = None
         self.avg_return = None
-        self.conf_level = 0.05
+        self.conf_level = 0.05  # 95% confidence level
         self.initial_balance = initial_balance
         self.current_balance = initial_balance
 
-    def update_cov(self, current_date, occurance_data=1000):
+    def update_cov(self, current_date: pd.Timestamp, occurance_data: int = 1000) -> pd.DataFrame:
+        """
+        Update covariance matrix and average returns based on historical data.
+
+        Args:
+            current_date: Current date for lookback calculation
+            occurance_data: Number of historical periods to use (default 1000)
+
+        Returns:
+            DataFrame of returns used for calculation
+        """
         returns = pd.DataFrame()
         returns["temp"] = [0] * (occurance_data)
         for pair in self.df_list:
@@ -51,7 +77,17 @@ class ValueAtRisk:
         self.avg_return = returns.mean()
         return returns
 
-    def get_var(self, positions):
+    def get_var(self, positions: Dict[str, Dict[str, float]]) -> float:
+        """
+        Calculate portfolio Value at Risk.
+
+        Args:
+            positions: Dictionary of positions per pair
+                      Format: {pair: {"long": exposure, "short": exposure}}
+
+        Returns:
+            VaR as percentage of current balance
+        """
         usd_in_position = 0
         for pair in list(positions.keys()):
             usd_in_position += positions[pair]["long"] + positions[pair]["short"]
@@ -87,6 +123,11 @@ class ValueAtRisk:
         # Return VaR as percentage of current balance (not fixed 1)
         return var_1d1 / self.current_balance * 100
 
-    def update_balance(self, new_balance):
-        """Update current balance for VaR calculation"""
+    def update_balance(self, new_balance: float) -> None:
+        """
+        Update current balance for VaR calculation.
+
+        Args:
+            new_balance: New portfolio balance in USD
+        """
         self.current_balance = new_balance

@@ -2,9 +2,21 @@ import pandas as pd
 import seaborn as sns
 import numpy as np
 from tabulate import tabulate
+from typing import Dict, Union
 from utilities.custom_indicators import get_n_columns  # Removed duplicate function
 
-def get_metrics(df_trades, df_days):
+
+def get_metrics(df_trades: pd.DataFrame, df_days: pd.DataFrame) -> Dict[str, Union[float, int]]:
+    """
+    Calculate key backtest metrics from trades and daily data.
+
+    Args:
+        df_trades: DataFrame containing individual trades
+        df_days: DataFrame containing daily wallet snapshots
+
+    Returns:
+        Dictionary with metrics: sharpe_ratio, max_drawdown, win_rate, avg_profit
+    """
     df_days_copy = df_days.copy()
     df_days_copy['evolution'] = df_days_copy['wallet'].diff()
     df_days_copy['daily_return'] = df_days_copy['evolution']/df_days_copy['wallet'].shift(1)
