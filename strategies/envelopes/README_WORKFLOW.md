@@ -40,10 +40,11 @@ Guide pratique pour optimiser la stratégie multi-envelope avec détection de r�
 
 **Durée**: Variable selon grid size
 - Grid réduit (2 configs) : ~5-10 min
-- Grid coarse (12 configs) : ~30-60 min
-- Grid fine (50+ configs) : 1-3h
+- **Grid intermédiaire (18 configs) : ~15-20 min** ⭐ (recommandé Étape 1)
+- Grid par profil (96 configs) : ~30-60 min (Étape 2)
+- Grid fine (200+ configs) : 1-3h
 
-**Période**: 2020-2024 (optimisation) + 2024-H2 (hold-out)
+**Période**: 2020-2025 (optimisation) + 2025-H2 (hold-out)
 
 **Méthodologie anti-overfitting**:
 
@@ -82,18 +83,24 @@ Le notebook utilise **ProcessPoolExecutor** pour paralléliser les backtests.
 - `size`: Risque par trade (0.08, 0.10, 0.12)
 - `stop_loss`: Protection (0.20, 0.25, 0.30)
 
-**⚠️ Type d'optimisation - DÉCISION REQUISE**:
+**🎯 Approche incrémentale recommandée**:
 
-**État actuel**: Optimisation **GLOBALE** (1 set pour les 28 cryptos)
-- Simple et rapide
-- Évite l'overfitting
-- Sous-optimal (BTC et DOGE utilisent mêmes paramètres)
+### ✅ Étape 1: Grid intermédiaire global (TERMINÉE)
+- **État**: ✅ Complétée - Résultats dans `wf_results_summary_20251004_235003.csv`
+- **Grid**: 18 configs (3 MA × 2 envelope_sets × 3 sizes)
+- **Temps**: ~15-20 min avec multi-core
+- **Résultat**: Meilleure config = MA=5, size=0.12, envelopes=[0.07, 0.10, 0.15]
+- **Limitation**: ❌ Paramètres identiques pour BTC et DOGE (pas de sens)
 
-**Option alternative**: Optimisation **PAR PROFIL** (4 sets) - NON IMPLÉMENTÉ
-- Majors (BTC, ETH), Mid-caps, Volatiles, Low performers
-- Meilleur compromis performance/overfitting
-- Nécessite modification notebooks (30-45 min)
-- Temps: 1-2h au lieu de 5-10 min
+### ✅ Étape 2: Optimisation par profil (IMPLÉMENTÉE)
+- **État**: ✅ Implémentée avec multiplicateurs (garde-fou #10)
+- **Profils**: 4 grids (major, mid-cap, volatile, low)
+- **Multiplicateurs**: major=0.8, mid-cap=1.0, volatile=1.4, low=1.0
+- **Grid**: 36 configs (8+8+16+4)
+- **Temps**: ~27 min avec multi-core
+- **Objectif**: BTC ≠ DOGE (envelopes adaptées à la volatilité)
+- **Avantage**: Meilleur compromis performance/overfitting
+- **Gate**: Validation automatique Profil vs Global
 
 **Résultat attendu**:
 - Meilleure config validée sur 28 paires + hold-out
@@ -202,14 +209,20 @@ R: Oui, mais séparément. Modifier `DEFAULT_PARAMS` dans `core/__init__.py` pou
 **Q: Le multi-core fonctionne sur Mac/Linux ?**
 R: Oui, ProcessPoolExecutor est cross-platform.
 
-**Q: Pourquoi 2020-2024 au lieu de 2022-2024 ?**
-R: Couvrir plus de cycles de marché (BULL 2020-21, BEAR 2022, RECOVERY 2023, BULL 2024) améliore la robustesse. Certaines cryptos n'existaient pas en 2020 mais sont automatiquement ignorées.
+**Q: Pourquoi 2020-2025 au lieu de 2022-2025 ?**
+R: Couvrir plus de cycles de marché (BULL 2020-21, BEAR 2022, RECOVERY 2023, BULL 2024-25) améliore la robustesse. Certaines cryptos n'existaient pas en 2020 mais sont automatiquement ignorées.
 
 **Q: Optimisation globale vs par profil vs individuelle ?**
 R:
-- **Globale** (actuel): 1 set pour tous, simple mais sous-optimal
-- **Par profil** (recommandé): 4 sets (majors/mid-caps/volatiles/low), meilleur compromis
+- **Globale** (Étape 1): 1 set pour tous, simple et rapide, évite overfitting
+- **Par profil** (Étape 2): 4 sets (majors/mid-caps/volatiles/low), meilleur compromis
 - **Individuelle**: 28 sets, risque overfitting énorme, déconseillé
+
+**Q: Faut-il directement faire l'optimisation par profil ?**
+R: Non ! Approche incrémentale recommandée :
+1. Tester grid intermédiaire global (18 configs, ~15 min)
+2. Si résultats OK → Utiliser config globale (simple)
+3. Si résultats insatisfaisants → Implémenter par profil (~30 min code + 30-60 min run)
 
 **Q: Pourquoi ne pas utiliser le GPU RTX 4080 ?**
 R: CPU multi-core suffit pour grids raisonnables. GPU nécessite réécriture majeure (2-4h) pour gain 3-5x. À implémenter seulement si temps devient critique (>3h).
