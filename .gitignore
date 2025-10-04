@@ -1,8 +1,40 @@
+# === Project Specific ===
+# Database and data files
 database/
 *.db
-database/
+*.sqlite
+*.sqlite3
+
+# IDE
 .vscode/
+.idea/
+*.code-workspace
+
+# Debug and test files
 test/
+tests/
+debug_*.py
+test_*.py
+verify_*.py
+modify_notebook.py
+reload_module_notebook.py
+
+# Temporary results
+backtest_cycles_results.txt
+*.txt.bak
+
+# Claude/AI assistants
+.claude/
+.roo/
+
+# Python-ctapi (if it's a separate package)
+python-ctapi/build/
+python-ctapi/dist/
+python-ctapi/*.egg-info/
+
+# Notebook outputs and backups
+*_backup.ipynb
+*.ipynb.bak
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
