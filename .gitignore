@@ -31,6 +31,15 @@ backtest_cycles_results.txt
 *.txt.bak
 nul
 
+# Backtest results and outputs (generated files)
+strategies/envelopes/backtest_comparison_results.csv
+strategies/envelopes/best_config_*.json
+strategies/envelopes/results_manual_*.csv
+strategies/envelopes/wf_results_*.csv
+strategies/envelopes/*.png
+strategies/envelopes/train_vs_test_*.png
+strategies/envelopes/top10_scores_*.png
+
 # Claude/AI assistants
 .claude/
 .roo/
