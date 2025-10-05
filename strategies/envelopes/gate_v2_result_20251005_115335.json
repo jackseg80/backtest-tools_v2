@@ -1,0 +1,19 @@
+{
+  "recommendation": "global",
+  "timestamp": "20251005_115335",
+  "metrics_profils": {
+    "weighted_score": -36.696205683060086,
+    "weighted_sharpe": 2.6459796382114544,
+    "total_trades": 847,
+    "avg_delta_train_test": 0.9327597849519003
+  },
+  "metrics_global": {
+    "score": 2.943,
+    "sharpe": 3.13
+  },
+  "gate_results": {
+    "tier1_pass": false,
+    "tier2_pass": false,
+    "tier2_count": 0
+  }
+}

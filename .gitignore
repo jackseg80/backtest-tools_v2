@@ -31,14 +31,27 @@ backtest_cycles_results.txt
 *.txt.bak
 nul
 
+# Backtest results and outputs (generated files)
+strategies/envelopes/backtest_comparison_results.csv
+strategies/envelopes/best_config_*.json
+strategies/envelopes/results_manual_*.csv
+strategies/envelopes/wf_results_*.csv
+strategies/envelopes/*.png
+strategies/envelopes/train_vs_test_*.png
+strategies/envelopes/top10_scores_*.png
+
 # Claude/AI assistants
 .claude/
 .roo/
 
 # Python-ctapi (if it's a separate package)
-python-ctapi/build/
-python-ctapi/dist/
-python-ctapi/*.egg-info/
+python-ctapi/
+
+# Live trading code (not for backtest)
+strategies/envelopes/live/
+
+# Temporary files
+temp_*.py
 
 # Notebook outputs and backups
 *_backup.ipynb

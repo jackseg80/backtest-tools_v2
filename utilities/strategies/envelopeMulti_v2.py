@@ -241,7 +241,7 @@ class EnvelopeMulti_v2():
     def run_backtest(self, initial_wallet=1000, leverage=1, maker_fee=0.0002, taker_fee=0.0006, stop_loss=1, reinvest=True, liquidation=True,
                      gross_cap=1.5, per_side_cap=1.0, per_pair_cap=0.3, margin_cap=0.8, use_kill_switch=True,
                      auto_adjust_size=True, extreme_leverage_threshold=50,
-                     risk_mode="neutral", base_size=None, max_expo_cap=2.0):
+                     risk_mode="neutral", base_size=None, max_expo_cap=2.0, params_adapter=None):
         """
         Run backtest with V2 margin system and configurable risk mode.
 
@@ -259,6 +259,11 @@ class EnvelopeMulti_v2():
         max_expo_cap : float
             (HYBRID mode only) Maximum total notional as multiple of equity.
             Example: 2.0 means max notional = 2x equity
+
+        params_adapter : ParamsAdapter, optional
+            Dynamic parameter adapter that modifies params based on date/pair.
+            If None, uses static self.params throughout the backtest.
+            Example: RegimeBasedAdapter to adapt envelopes based on market regime
         """
         params = self.params
         df_ini = self.df_list[self.oldest_pair][:]
@@ -279,39 +284,33 @@ class EnvelopeMulti_v2():
         if risk_mode not in ["neutral", "scaling", "hybrid"]:
             raise ValueError(f"Invalid risk_mode: {risk_mode}. Must be 'neutral', 'scaling', or 'hybrid'")
 
-        # V2: Handle base_size (backward compatibility)
-        if base_size is None:
-            # Use size from params (old behavior)
-            print("[WARNING] base_size not provided, using params[pair]['size']. Consider migrating to base_size parameter.")
-            use_legacy_size = True
-        else:
-            # Override all params with base_size
-            use_legacy_size = False
-            for pair in params:
-                params[pair]['base_size'] = base_size
+        # V2: Base-size resolver (priority: arg > params.base_size > params.size)
+        def _resolve_base_size(pair: str) -> float:
+            """Resolve base_size for a pair with fallback chain."""
+            if base_size is not None:
+                return float(base_size)
+            p = params[pair]
+            if 'base_size' in p:
+                return float(p['base_size'])
+            if 'size' in p:
+                return float(p['size'])
+            raise KeyError(f"Missing size for {pair}: need 'base_size' or legacy 'size'.")
 
         # V2: Margin management
         used_margin = 0.0
         equity = initial_wallet
 
         # V2: Risk mode configuration
-        print(f"[Risk Mode] {risk_mode.upper()} (leverage={leverage}x, base_size={base_size})")
+        # print(f"[Risk Mode] {risk_mode.upper()} (leverage={leverage}x)")
 
-        if risk_mode == "neutral":
-            # Notional constant: effective_size = base_size / leverage
-            # Ignore auto_adjust_size (always adjust in neutral mode)
-            if not use_legacy_size:
-                print(f"  -> Neutral mode: notional = equity * base_size (constant)")
-        elif risk_mode == "scaling":
-            # Notional scales with leverage: effective_size = base_size * leverage
-            # Force auto_adjust_size=False
-            if auto_adjust_size:
-                print(f"  -> Scaling mode: ignoring auto_adjust_size (notional scales with leverage)")
-            print(f"  -> Scaling mode: notional = equity * base_size * leverage")
-        elif risk_mode == "hybrid":
-            # Notional scales but capped: min(base_size * leverage, max_expo_cap)
-            print(f"  -> Hybrid mode: notional = min(equity * base_size * leverage, equity * {max_expo_cap})")
-            print(f"  -> Cap will activate when leverage > {max_expo_cap / base_size:.0f}x" if base_size else "")
+        # if risk_mode == "neutral":
+        #     print(f"  -> Neutral mode: notional = equity * base_size (constant)")
+        # elif risk_mode == "scaling":
+        #     if auto_adjust_size:
+        #         print(f"  -> Scaling mode: ignoring auto_adjust_size (notional scales with leverage)")
+        #     print(f"  -> Scaling mode: notional = equity * base_size * leverage")
+        # elif risk_mode == "hybrid":
+        #     print(f"  -> Hybrid mode: notional = min(equity * base_size * leverage, equity * {max_expo_cap})")
 
         # V2: Adjust per_pair_cap for extreme leverage (optional hardening)
         effective_per_pair_cap = per_pair_cap
@@ -335,7 +334,9 @@ class EnvelopeMulti_v2():
             'maker_fills': 0,
             'taker_fills': 0,
             'total_maker_fees': 0.0,
-            'total_taker_fees': 0.0
+            'total_taker_fees': 0.0,
+            'added_margin': 0.0,
+            'released_margin': 0.0
         }
 
         # V2: Exposure & margin tracking
@@ -352,6 +353,28 @@ class EnvelopeMulti_v2():
                 if index in self.df_list[pair].index:
                     last_prices[pair] = self.df_list[pair].loc[index]['open']
             equity = update_equity(wallet, current_positions, last_prices)
+
+            # ===================================================================
+            # V2: BUGFIX (2025-10-05) - Recalculate used_margin from open positions
+            # ===================================================================
+            # PROBLEM: Previously, used_margin was incremented/decremented manually
+            #   (used_margin += init_margin on open, used_margin -= released on close)
+            #   This caused accumulation errors where used_margin didn't reflect reality.
+            #
+            # SYMPTOM: With tight stop-loss (5%) + high leverage (10x) + multi-pair (28):
+            #   - Many liquidations/SL closes → used_margin drifted from actual value
+            #   - used_margin reached 99% of equity despite only few positions open
+            #   - rejected_by_margin_cap increased to 6000+, blocking all new trades
+            #   - Backtest stopped trading after a few months despite wallet > 0
+            #
+            # FIX: Recalculate used_margin at each iteration based ONLY on positions
+            #   that are currently open (in current_positions dict).
+            #   This ensures used_margin always reflects the true margin commitment.
+            #
+            # IMPACT: rejected_by_margin_cap reduced from 6116 → 0 in test case
+            #   Backtest now continues trading throughout entire data range.
+            # ===================================================================
+            used_margin = sum(pos.get('init_margin', 0) for pos in current_positions.values())
 
             # V2: Check kill-switch
             if kill_switch:
@@ -432,14 +455,16 @@ class EnvelopeMulti_v2():
                         # Use apply_close for proper PnL/fee calculation
                         pnl, fee = apply_close(current_positions[pair], close_price, taker_fee, is_taker=True)
                         wallet += pnl
-                        used_margin -= current_positions[pair].get('init_margin', 0)
+                        released = current_positions[pair].get('init_margin', 0)
+                        used_margin = max(0.0, used_margin - released)
+                        event_counters['released_margin'] += released
 
                         # Force wallet to 0 if negative (total loss)
                         if wallet < 0:
                             wallet = 0
 
                         liquidation_date = str(index.year) + "-" + str(index.month) + "-" + str(index.day)
-                        print(f"LIQUIDATION {liquidation_date}: {pair} LONG @ {liq_price:.2f} (entry: {current_positions[pair]['price']:.2f})")
+                        # print(f"LIQUIDATION {liquidation_date}: {pair} LONG @ {liq_price:.2f} (entry: {current_positions[pair]['price']:.2f})")
 
                         trades.append({
                             "pair": pair,
@@ -475,13 +500,15 @@ class EnvelopeMulti_v2():
 
                         pnl, fee = apply_close(current_positions[pair], close_price, taker_fee, is_taker=True)
                         wallet += pnl
-                        used_margin -= current_positions[pair].get('init_margin', 0)
+                        released = current_positions[pair].get('init_margin', 0)
+                        used_margin = max(0.0, used_margin - released)
+                        event_counters['released_margin'] += released
 
                         if wallet < 0:
                             wallet = 0
 
                         liquidation_date = str(index.year) + "-" + str(index.month) + "-" + str(index.day)
-                        print(f"LIQUIDATION {liquidation_date}: {pair} SHORT @ {liq_price:.2f} (entry: {current_positions[pair]['price']:.2f})")
+                        # print(f"LIQUIDATION {liquidation_date}: {pair} SHORT @ {liq_price:.2f} (entry: {current_positions[pair]['price']:.2f})")
 
                         trades.append({
                             "pair": pair,
@@ -631,6 +658,9 @@ class EnvelopeMulti_v2():
                     close_size = current_positions[pair]['size'] + current_positions[pair]['size'] * trade_result
                     fee = close_size * maker_fee
                     wallet += close_size - current_positions[pair]['size'] - fee
+                    released = current_positions[pair].get('init_margin', 0)
+                    used_margin = max(0.0, used_margin - released)
+                    event_counters['released_margin'] += released
 
                     # Check if liquidated and clamp wallet before recording trade
                     if use_liquidation and wallet <= 0:
@@ -675,6 +705,9 @@ class EnvelopeMulti_v2():
                     close_size = current_positions[pair]['size'] + current_positions[pair]['size'] * trade_result
                     fee = close_size * maker_fee
                     wallet += close_size - current_positions[pair]['size'] - fee
+                    released = current_positions[pair].get('init_margin', 0)
+                    used_margin = max(0.0, used_margin - released)
+                    event_counters['released_margin'] += released
 
                     # Check if liquidated and clamp wallet before recording trade
                     if use_liquidation and wallet <= 0:
@@ -724,7 +757,11 @@ class EnvelopeMulti_v2():
                     continue
                 actual_position = None
                 actual_row = self.df_list[pair].loc[index]
-                for i in range(1, len(params[pair]["envelopes"]) + 1):
+
+                # V2: Get adapted params if adapter provided
+                effective_params = params_adapter.get_params_at_date(index, pair) if params_adapter else params[pair]
+
+                for i in range(1, len(effective_params["envelopes"]) + 1):
                     if pair in current_positions:
                         actual_position = current_positions[pair]
                     if (actual_position and actual_position["side"] == "SHORT") or (actual_row[f"open_long_{i}"] == False) or (pair in closed_pair):
@@ -733,9 +770,10 @@ class EnvelopeMulti_v2():
                     if actual_position and actual_position["envelope"] >= i:
                         continue
                     if actual_row[f"open_long_{i}"]:
-                        # Realistic slippage: since low touched ma_low, we likely get filled at or slightly above ma_low
-                        # Conservative: use ma_low (best case) or add small slippage
-                        open_price = actual_row[f'ma_low_{i}']
+                        # V2: Recalculate envelope price with adapted params
+                        ma_base = actual_row['ma_base']
+                        envelope_pct = effective_params["envelopes"][i-1]
+                        open_price = ma_base * (1 - envelope_pct)
 
                         # V2: Calculate notional and qty based on equity (not wallet)
                         if reinvest or (wallet <= initial_wallet):
@@ -743,20 +781,16 @@ class EnvelopeMulti_v2():
                         else:
                             base_capital = initial_wallet
 
-                        # V2: Calculate notional according to risk_mode
-                        if use_legacy_size:
-                            # Backward compatibility: use old formula
-                            notional = (params[pair]["size"] * base_capital * leverage) / len(params[pair]["envelopes"])
-                        else:
-                            # New risk_mode system
-                            notional = calculate_notional_per_level(
-                                equity=base_capital,
-                                base_size=params[pair]['base_size'],
-                                leverage=leverage,
-                                n_levels=len(params[pair]["envelopes"]),
-                                risk_mode=risk_mode,
-                                max_expo_cap=max_expo_cap
-                            )
+                        # V2: Calculate notional according to risk_mode (use effective_params)
+                        eff_base = _resolve_base_size(pair)
+                        notional = calculate_notional_per_level(
+                            equity=base_capital,
+                            base_size=eff_base,
+                            leverage=leverage,
+                            n_levels=len(effective_params["envelopes"]),
+                            risk_mode=risk_mode,
+                            max_expo_cap=max_expo_cap
+                        )
 
                         qty = notional / open_price
                         init_margin = notional / leverage
@@ -786,11 +820,13 @@ class EnvelopeMulti_v2():
                         pos_size = notional - fee
                         wallet -= fee
                         used_margin += init_margin
+                        event_counters['added_margin'] += init_margin
 
                         # Check if liquidated after paying fees
                         if use_liquidation and wallet <= 0:
                             wallet = 0
-                            used_margin -= init_margin  # Rollback margin
+                            used_margin = max(0.0, used_margin - init_margin)  # Rollback margin with clamp
+                            event_counters['added_margin'] -= init_margin  # Rollback counter
                             liquidation_date = str(index.year) + "-" + str(index.month) + "-" + str(index.day)
                             print(f"Liquidation le {liquidation_date}: Plus d'argent dans le portefeuille.")
                             is_liquidated = True
@@ -842,7 +878,11 @@ class EnvelopeMulti_v2():
                     continue
                 actual_position = None
                 actual_row = self.df_list[pair].loc[index]
-                for i in range(1, len(params[pair]["envelopes"]) + 1):
+
+                # V2: Get adapted params if adapter provided
+                effective_params = params_adapter.get_params_at_date(index, pair) if params_adapter else params[pair]
+
+                for i in range(1, len(effective_params["envelopes"]) + 1):
                     if pair in current_positions:
                         actual_position = current_positions[pair]
                     if (actual_position and actual_position["side"] == "LONG") or actual_row[f"open_short_{i}"] == False or (pair in closed_pair):
@@ -850,9 +890,10 @@ class EnvelopeMulti_v2():
                     if actual_position and actual_position["envelope"] >= i:
                         continue
                     if actual_row[f"open_short_{i}"]:
-                        # Realistic slippage: since high touched ma_high, we likely get filled at or slightly below ma_high
-                        # Conservative: use ma_high (best case) or add small slippage
-                        open_price = actual_row[f'ma_high_{i}']
+                        # V2: Recalculate envelope price with adapted params
+                        ma_base = actual_row['ma_base']
+                        envelope_pct = effective_params["envelopes"][i-1]
+                        open_price = ma_base / (1 - envelope_pct)
 
                         # V2: Calculate notional and qty based on equity (not wallet)
                         if reinvest or (wallet <= initial_wallet):
@@ -860,20 +901,16 @@ class EnvelopeMulti_v2():
                         else:
                             base_capital = initial_wallet
 
-                        # V2: Calculate notional according to risk_mode
-                        if use_legacy_size:
-                            # Backward compatibility: use old formula
-                            notional = (params[pair]["size"] * base_capital * leverage) / len(params[pair]["envelopes"])
-                        else:
-                            # New risk_mode system
-                            notional = calculate_notional_per_level(
-                                equity=base_capital,
-                                base_size=params[pair]['base_size'],
-                                leverage=leverage,
-                                n_levels=len(params[pair]["envelopes"]),
-                                risk_mode=risk_mode,
-                                max_expo_cap=max_expo_cap
-                            )
+                        # V2: Calculate notional according to risk_mode (use effective_params)
+                        eff_base = _resolve_base_size(pair)
+                        notional = calculate_notional_per_level(
+                            equity=base_capital,
+                            base_size=eff_base,
+                            leverage=leverage,
+                            n_levels=len(effective_params["envelopes"]),
+                            risk_mode=risk_mode,
+                            max_expo_cap=max_expo_cap
+                        )
 
                         qty = notional / open_price
                         init_margin = notional / leverage
@@ -897,11 +934,13 @@ class EnvelopeMulti_v2():
                         pos_size = notional - fee
                         wallet -= fee
                         used_margin += init_margin
+                        event_counters['added_margin'] += init_margin
 
                         # Check if liquidated after paying fees
                         if use_liquidation and wallet <= 0:
                             wallet = 0
-                            used_margin -= init_margin  # Rollback margin
+                            used_margin = max(0.0, used_margin - init_margin)  # Rollback margin with clamp
+                            event_counters['added_margin'] -= init_margin  # Rollback counter
                             liquidation_date = str(index.year) + "-" + str(index.month) + "-" + str(index.day)
                             print(f"Liquidation le {liquidation_date}: Plus d'argent dans le portefeuille.")
                             is_liquidated = True

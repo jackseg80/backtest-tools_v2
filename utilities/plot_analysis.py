@@ -142,16 +142,19 @@ def plot_futur_simulations(df_trades, trades_multiplier, trades_to_forecast, num
     mean_trades_per_day = number_of_trade_last_year/365
     start_date = df_trades.iloc[-1]["close_date"]
     time_list = [(start_date:=start_date+datetime.timedelta(hours=int(24/mean_trades_per_day))) for x in range(trades_to_forecast)]
+    # Utiliser trade_result_pct_wallet pour éviter explosion exponentielle
+    # trade_result_pct_wallet = impact du trade sur le wallet total
     trades_pool = list(df_trades["trade_result_pct_wallet"] + 1) * trades_multiplier
     true_trades_date = list(df_trades.iloc[-true_trades_to_show:]["close_date"])
     true_trades_result = list(df_trades.iloc[-true_trades_to_show:]["wallet"])
-    mu, sigma = 0, df_trades["trade_result_pct_wallet"].std() # mean and standard deviation
     simulations = {}
     result_simulation = []
+
+    # Bootstrap pur (sans bruit gaussien) pour préserver la vraie distribution
     for i in range(number_of_simulations):
-        current_trades_pool = random.sample(trades_pool, trades_to_forecast)
-        noise_result = np.random.normal(mu, sigma, len(current_trades_pool))
-        current_trades_pool = current_trades_pool + noise_result
+        # Bootstrap: rééchantillonnage avec remise
+        current_trades_pool = random.choices(trades_pool, k=trades_to_forecast)
+        # NOTE: Pas de bruit gaussien - la distribution réelle n'est pas normale
         curr=1
         current_trades_result = [(curr:=curr*v) for v in current_trades_pool]
         simulated_wallet = [x*inital_wallet for x in current_trades_result]
@@ -187,18 +190,20 @@ def plot_train_test_simulation(df_trades, train_test_date, trades_multiplier, nu
     inital_wallet = df_train.iloc[-1]['wallet']
     trades_to_show = len(df_test) *2
     time_list = list(df_test["close_date"])
+    # Utiliser trade_result_pct_wallet pour éviter explosion exponentielle
+    # trade_result_pct_wallet = impact du trade sur le wallet total
     trades_pool = list(df_train["trade_result_pct_wallet"] + 1) * trades_multiplier
     true_trades_date = list(df_train.iloc[-trades_to_show:]["close_date"])
     true_trades_result = list(df_train.iloc[-trades_to_show:]["wallet"])
-    mu, sigma = 0, df_trades["trade_result_pct_wallet"].std() # mean and standard deviation
     simulations = {}
     result_simulation = []
-    
-    # Simulation de surapprentissage
+
+    # Simulation de surapprentissage (Bootstrap pur - préserve la vraie distribution)
     for i in range(number_of_simulations):
-        current_trades_pool = random.sample(trades_pool, trades_to_forecast)
-        noise_result = np.random.normal(mu, sigma, len(current_trades_pool))
-        current_trades_pool = current_trades_pool + noise_result
+        # Bootstrap: rééchantillonnage avec remise (préserve queues épaisses et asymétrie)
+        current_trades_pool = random.choices(trades_pool, k=trades_to_forecast)
+        # NOTE: On n'ajoute PAS de bruit gaussien car la distribution réelle n'est PAS normale
+        # Le bootstrap préserve la vraie distribution (fat tails, skewness, etc.)
         curr=1
         current_trades_result = [(curr:=curr*v) for v in current_trades_pool]
         simulated_wallet = [x*inital_wallet for x in current_trades_result]
@@ -214,23 +219,59 @@ def plot_train_test_simulation(df_trades, train_test_date, trades_multiplier, nu
         if i != 9:
             plt.plot(true_trades_date+time_list, true_trades_result+simulations[sorted_simul_result[index_to_show]["key"]])
             
-    plt.plot(true_trades_date+time_list, true_trades_result+list(df_test["wallet"]), linewidth=3.0, color="green")
+    # Tracer la courbe réelle en vert épais
+    plt.plot(true_trades_date+time_list, true_trades_result+list(df_test["wallet"]), linewidth=3.0, color="green", label="Réalité (Test Set)")
+
+    # Validation statistique : percentile de la performance réelle
+    real_final_wallet = df_test.iloc[-1]["wallet"]
+    simulated_finals = [sim[-1] for sim in simulations.values()]
+    percentile = sum(1 for x in simulated_finals if x < real_final_wallet) / len(simulated_finals) * 100
+
+    # Afficher le résultat
+    plt.legend()
+    print(f"\n{'='*60}")
+    print(f"VALIDATION OVERFITTING")
+    print(f"{'='*60}")
+    print(f"Wallet final réel (test): {real_final_wallet:.2f}")
+    print(f"Percentile vs simulations: {percentile:.1f}%")
+    if percentile > 95:
+        print(f"⚠️  ALERTE OVERFITTING: Performance réelle > 95% des simulations!")
+    elif percentile > 75:
+        print(f"⚠️  Overfitting possible: Performance > 75% des simulations")
+    elif percentile < 25:
+        print(f"📉 Performance inférieure: < 25% des simulations")
+    else:
+        print(f"✅ Performance cohérente avec les simulations")
+    print(f"{'='*60}\n")
+
     plt.show() 
 
     from datetime import datetime, timedelta
 
 
-def detect_date_train_test(start_date, pourcent_test=0.2):
+def detect_date_train_test(start_date, pourcent_test=0.2, end_date=None):
+    """
+    Calcule la date de séparation train/test.
+
+    Args:
+        start_date: Date de début au format 'YYYY-MM-DD'
+        pourcent_test: Pourcentage de données pour le test (default: 0.2)
+        end_date: Date de fin (optionnel, par défaut datetime.now())
+
+    Returns:
+        Date de coupure au format string 'YYYY-MM-DD HH:MM:SS'
+    """
     from datetime import datetime, timedelta
-    # Dates de début et de fin
-    start_date = datetime.strptime(start_date, '%Y-%m-%d')
-    end_date = datetime.now()
 
-    # Calcul de la date de coupure (80%)
-    def get_cutoff_date(start_date, end_date, test_size):
-        total_duration = end_date - start_date
-        training_days = total_duration.days * (1 - test_size)
-        cutoff_date = start_date + timedelta(days=training_days)
-        return cutoff_date
+    start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+    end_dt = datetime.strptime(end_date, '%Y-%m-%d') if end_date else datetime.now()
 
-    return str(get_cutoff_date(start_date, end_date, pourcent_test))
+    total_duration = end_dt - start_dt
+    training_days = total_duration.days * (1 - pourcent_test)
+    cutoff_date = start_dt + timedelta(days=training_days)
+
+    print(f"Train/Test Split:")
+    print(f"  Train: {start_date} → {cutoff_date.strftime('%Y-%m-%d')} ({int(training_days)} jours)")
+    print(f"  Test:  {cutoff_date.strftime('%Y-%m-%d')} → {end_dt.strftime('%Y-%m-%d')} ({int(total_duration.days * pourcent_test)} jours)")
+
+    return str(cutoff_date)

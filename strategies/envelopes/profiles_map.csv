@@ -1,0 +1,29 @@
+pair,profile,notes
+BTC/USDT:USDT,major,Faible volatilité - référence marché
+ETH/USDT:USDT,major,Faible volatilité - référence altcoins
+BNB/USDT:USDT,major,Exchange token - stable
+SOL/USDT:USDT,mid-cap,Volatilité moyenne - L1
+AVAX/USDT:USDT,mid-cap,Volatilité moyenne - L1
+ADA/USDT:USDT,mid-cap,Volatilité moyenne - ancienne L1
+LINK/USDT:USDT,mid-cap,Oracle - volatilité moyenne
+UNI/USDT:USDT,mid-cap,DEX token
+ATOM/USDT:USDT,mid-cap,Cosmos ecosystem
+DOT/USDT:USDT,mid-cap,Polkadot ecosystem
+NEAR/USDT:USDT,mid-cap,L1 nouvelle génération
+LTC/USDT:USDT,mid-cap,Legacy coin stable
+ETC/USDT:USDT,mid-cap,Legacy coin
+FIL/USDT:USDT,mid-cap,Storage token
+AAVE/USDT:USDT,mid-cap,DeFi blue chip
+MATIC/USDT:USDT,mid-cap,L2 scaling (Note: désactivé live)
+XRP/USDT:USDT,mid-cap,Legacy payment coin
+DOGE/USDT:USDT,volatile,Meme coin - haute volatilité
+SHIB/USDT:USDT,volatile,Meme coin - haute volatilité
+SUSHI/USDT:USDT,volatile,DEX - haute volatilité
+APT/USDT:USDT,volatile,Nouveau L1 - volatilité élevée
+ARB/USDT:USDT,volatile,Nouveau L2 - volatilité élevée
+OP/USDT:USDT,volatile,Nouveau L2 - volatilité élevée
+IMX/USDT:USDT,volatile,Gaming/NFT - haute volatilité
+INJ/USDT:USDT,volatile,DeFi récent - volatilité élevée
+RUNE/USDT:USDT,volatile,DeFi cross-chain - volatilité élevée
+CRV/USDT:USDT,volatile,DeFi - volatilité post-exploit
+TRX/USDT:USDT,low,Low performer - faible volatilité relative
