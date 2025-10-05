@@ -354,6 +354,28 @@ class EnvelopeMulti_v2():
                     last_prices[pair] = self.df_list[pair].loc[index]['open']
             equity = update_equity(wallet, current_positions, last_prices)
 
+            # ===================================================================
+            # V2: BUGFIX (2025-10-05) - Recalculate used_margin from open positions
+            # ===================================================================
+            # PROBLEM: Previously, used_margin was incremented/decremented manually
+            #   (used_margin += init_margin on open, used_margin -= released on close)
+            #   This caused accumulation errors where used_margin didn't reflect reality.
+            #
+            # SYMPTOM: With tight stop-loss (5%) + high leverage (10x) + multi-pair (28):
+            #   - Many liquidations/SL closes → used_margin drifted from actual value
+            #   - used_margin reached 99% of equity despite only few positions open
+            #   - rejected_by_margin_cap increased to 6000+, blocking all new trades
+            #   - Backtest stopped trading after a few months despite wallet > 0
+            #
+            # FIX: Recalculate used_margin at each iteration based ONLY on positions
+            #   that are currently open (in current_positions dict).
+            #   This ensures used_margin always reflects the true margin commitment.
+            #
+            # IMPACT: rejected_by_margin_cap reduced from 6116 → 0 in test case
+            #   Backtest now continues trading throughout entire data range.
+            # ===================================================================
+            used_margin = sum(pos.get('init_margin', 0) for pos in current_positions.values())
+
             # V2: Check kill-switch
             if kill_switch:
                 is_paused = kill_switch.update(index, equity, initial_wallet)

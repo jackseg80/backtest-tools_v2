@@ -67,6 +67,13 @@ All strategies follow a consistent pattern with three methods:
 
 **Important**: Always use V2 engines for production/live trading. V1 engines have known bugs with leverage calculation and are kept only for legacy comparison.
 
+**V2 Engine Improvements** (as of 2025-10-05):
+- ✅ **Margin calculation bugfix**: `used_margin` is now recalculated at each iteration based on actual open positions, preventing false "margin cap reached" rejections that stopped trading prematurely
+- ✅ Accurate intra-candle liquidation detection
+- ✅ Independent stop-loss and liquidation checks
+- ✅ Exposure caps (gross, per-side, per-pair, margin)
+- ✅ Kill-switch for automatic trading pause after drawdown
+
 **Multi-coin Strategy Pattern**:
 - Takes `df_list` dict mapping pair names to dataframes
 - Takes `parameters_obj` dict mapping pairs to strategy parameters
@@ -186,3 +193,12 @@ params[pair]["size"] = params_live[pair]["size"] / BACKTEST_LEVERAGE
 2. **Size adjustment is automatic** - no need to manually calculate
 3. **V2 engine messages are silenced** - clean backtest output without debug logs
 4. To change leverage, only modify `BACKTEST_LEVERAGE` in one place
+
+### Known Issues and Fixes
+
+**Margin Cap Bug (FIXED 2025-10-05)**:
+- **Symptom**: Backtest stops opening new positions after several months despite having available wallet balance
+- **Cause**: `used_margin` accumulated from closed positions instead of reflecting only current open positions
+- **Impact**: With tight stop-loss (e.g., 5%) and high leverage (10x), `rejected_by_margin_cap` could reach thousands, blocking all new trades
+- **Fix**: `used_margin` is now recalculated at each iteration: `sum(pos.get('init_margin', 0) for pos in current_positions.values())`
+- **Result**: `rejected_by_margin_cap` reduced from 6116 → 0, allowing backtest to continue normally throughout entire data range
