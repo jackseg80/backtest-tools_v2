@@ -1,0 +1,72 @@
+{
+  "major": {
+    "ma_base_window": 5,
+    "envelopes": [
+      0.056,
+      0.08,
+      0.12
+    ],
+    "size": 0.12,
+    "stop_loss": 0.25,
+    "adaptive": false,
+    "train_sharpe": 2.2956309858749617,
+    "test_sharpe": 2.6128919474876704,
+    "test_score": 1.215566814187157,
+    "consistency": 0.8617979267727182,
+    "test_trades": 192
+  },
+  "mid-cap": {
+    "ma_base_window": 7,
+    "envelopes": [
+      0.084,
+      0.12,
+      0.18
+    ],
+    "size": 0.14,
+    "stop_loss": 0.25,
+    "adaptive": false,
+    "train_sharpe": 4.212097200036626,
+    "test_sharpe": 2.3948096484202304,
+    "test_score": 2.1707555313004345,
+    "consistency": 0.5685551720884803,
+    "test_trades": 344
+  },
+  "volatile": {
+    "ma_base_window": 5,
+    "envelopes": [
+      0.084,
+      0.12,
+      0.18
+    ],
+    "size": 0.14,
+    "stop_loss": 0.25,
+    "adaptive": false,
+    "train_sharpe": 3.7912320320591277,
+    "test_sharpe": 2.9624829823265943,
+    "test_score": 2.0109249204856314,
+    "consistency": 0.781403764600919,
+    "test_trades": 276
+  },
+  "low": {
+    "ma_base_window": 7,
+    "envelopes": [
+      0.07,
+      0.1,
+      0.15
+    ],
+    "size": 0.1,
+    "stop_loss": 0.25,
+    "adaptive": false,
+    "train_sharpe": 2.2443100312827777,
+    "test_sharpe": 2.516996983810929,
+    "test_score": -498.639662943674,
+    "consistency": 0.8784985368655631,
+    "test_trades": 35
+  },
+  "_metadata": {
+    "timestamp": "20251005_114215",
+    "test_mode": true,
+    "method": "multiplicateurs + nb_envelopes_auto",
+    "scoring": "composite_avec_poids"
+  }
+}

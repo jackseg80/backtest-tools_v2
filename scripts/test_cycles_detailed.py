@@ -19,46 +19,64 @@ from utilities.strategies.envelopeMulti_v2 import EnvelopeMulti_v2 as EnvelopeMu
 from utilities.data_manager import ExchangeDataManager
 from utilities.bt_analysis import multi_backtest_analysis
 
-# Configuration identique au notebook (alignée avec le live) - TOUTES LES 28 PAIRES
+# ============================================================================
+# CONFIGURATION OPTIMISÉE FINALE (Validée 2025-10-05)
+# ============================================================================
+# MA = 5 (global)
+# Size = 0.12 (uniforme - meilleure performance que size variable)
+# Envelopes = 3 ou 4 selon volatilité (data-driven mapping)
+# ============================================================================
+
 BACKTEST_LEVERAGE = 10
 
-ma_base_window_std = 7
-envelope_std = [0.07, 0.1, 0.15, 0.2]
-size_std = 0.06
+# Config globale harmonisée
+MA_OPTIMALE = 5
+SIZE_UNIFORME = 0.12  # Validé: +11.96% perf vs size variable
 
-# Params live (seront ajustés automatiquement pour V2)
-params_live = {
-    "BTC/USDT:USDT":{ "src": "close", "ma_base_window": 7, "envelopes": [0.07, 0.1, 0.15], "size": 0.1,},
-    "ETH/USDT:USDT":{ "src": "close", "ma_base_window": 7, "envelopes": [0.07, 0.1, 0.12], "size": 0.1,},
-    "BNB/USDT:USDT":{ "src": "close", "ma_base_window": 8, "envelopes": [0.07, 0.1, 0.12], "size": 0.1,},
-    "SOL/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": [0.07, 0.1, 0.12], "size": size_std,},
-    "ADA/USDT:USDT":{ "src": "close", "ma_base_window": 8, "envelopes": [0.07, 0.1, 0.14, 0.18], "size": 0.1,},
-    "AR/USDT:USDT":{ "src": "close", "ma_base_window": 6, "envelopes": [0.05, 0.08, 0.1, 0.12], "size": size_std,},
-    "AVAX/USDT:USDT":{ "src": "close", "ma_base_window": 6, "envelopes": [0.08, 0.1, 0.15, 0.2], "size": 0.1,},
-    "TRX/USDT:USDT":{ "src": "close", "ma_base_window": 8, "envelopes": [0.08, 0.12, 0.15], "size": 0.05,},
-    "EGLD/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},
-    "KSM/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},
-    "ACH/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},
-    "APE/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},
-    "CRV/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},
-    "DOGE/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},
-    "DYDX/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},
-    "ENJ/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},
-    "FET/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},
-    "GALA/USDT:USDT":{ "src": "close", "ma_base_window": 5, "envelopes": envelope_std, "size": size_std,},
-    "ICP/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},
-    "IMX/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},
-    "LDO/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},
-    "MAGIC/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},
-    # "MATIC/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},  # Désactivé en live
-    "NEAR/USDT:USDT":{ "src": "close", "ma_base_window": 5, "envelopes": envelope_std, "size": size_std,},
-    "SAND/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},
-    "SOL/USDT:USDT":{ "src": "close", "ma_base_window": 7, "envelopes": [0.07, 0.1, 0.12], "size": size_std,},
-    "SUSHI/USDT:USDT":{ "src": "close", "ma_base_window": 8, "envelopes": envelope_std, "size": size_std,},
-    "THETA/USDT:USDT":{ "src": "close", "ma_base_window": 5, "envelopes": envelope_std, "size": size_std,},
-    "UNI/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},
-    "XTZ/USDT:USDT":{ "src": "close", "ma_base_window": ma_base_window_std, "envelopes": envelope_std, "size": size_std,},
+# Mapping 3/4 envelopes basé sur volatilité (envelope_count_mapping.csv)
+ENVELOPE_MAPPING = {
+    # 4 envelopes (haute volatilité >= 1.21%)
+    "BNB/USDT:USDT": [0.07, 0.1, 0.12, 0.15],
+    "SUSHI/USDT:USDT": [0.07, 0.1, 0.12, 0.15],
+    "FET/USDT:USDT": [0.07, 0.1, 0.12, 0.15],
+    "MAGIC/USDT:USDT": [0.07, 0.1, 0.12, 0.15],
+    "AR/USDT:USDT": [0.07, 0.1, 0.12, 0.15],
+    "GALA/USDT:USDT": [0.07, 0.1, 0.12, 0.15],
+    "DYDX/USDT:USDT": [0.07, 0.1, 0.12, 0.15],
+
+    # 3 envelopes (volatilité standard < 1.21%)
+    "BTC/USDT:USDT": [0.07, 0.1, 0.15],
+    "ETH/USDT:USDT": [0.07, 0.1, 0.15],
+    "SOL/USDT:USDT": [0.07, 0.1, 0.15],
+    "ADA/USDT:USDT": [0.07, 0.1, 0.15],
+    "AVAX/USDT:USDT": [0.07, 0.1, 0.15],
+    "TRX/USDT:USDT": [0.07, 0.1, 0.15],
+    "EGLD/USDT:USDT": [0.07, 0.1, 0.15],
+    "KSM/USDT:USDT": [0.07, 0.1, 0.15],
+    "ACH/USDT:USDT": [0.07, 0.1, 0.15],
+    "APE/USDT:USDT": [0.07, 0.1, 0.15],
+    "CRV/USDT:USDT": [0.07, 0.1, 0.15],
+    "DOGE/USDT:USDT": [0.07, 0.1, 0.15],
+    "ENJ/USDT:USDT": [0.07, 0.1, 0.15],
+    "ICP/USDT:USDT": [0.07, 0.1, 0.15],
+    "IMX/USDT:USDT": [0.07, 0.1, 0.15],
+    "LDO/USDT:USDT": [0.07, 0.1, 0.15],
+    "NEAR/USDT:USDT": [0.07, 0.1, 0.15],
+    "SAND/USDT:USDT": [0.07, 0.1, 0.15],
+    "THETA/USDT:USDT": [0.07, 0.1, 0.15],
+    "UNI/USDT:USDT": [0.07, 0.1, 0.15],
+    "XTZ/USDT:USDT": [0.07, 0.1, 0.15],
 }
+
+# Params optimisés (seront ajustés automatiquement pour V2)
+params_live = {}
+for pair, envelopes in ENVELOPE_MAPPING.items():
+    params_live[pair] = {
+        "src": "close",
+        "ma_base_window": MA_OPTIMALE,
+        "envelopes": envelopes,
+        "size": SIZE_UNIFORME,
+    }
 
 # Ajustement automatique des size pour backtest V2
 params = {}
